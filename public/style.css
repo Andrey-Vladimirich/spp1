@@ -1,0 +1,103 @@
+body {
+  font-family: "Segoe UI", Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #f7f9fc;
+  color: #333;
+}
+
+header, footer {
+  background: #3f51b5;
+  color: white;
+  text-align: center;
+  padding: 15px 0;
+}
+
+main {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 0 20px;
+}
+
+h1, h2 {
+  margin-bottom: 15px;
+}
+
+form {
+  margin: 10px 0;
+}
+
+input, select, button {
+  padding: 8px;
+  margin: 5px 0;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+button {
+  background: #3f51b5;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover {
+  background: #2c3e9e;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  background: white;
+  margin: 5px 0;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+.task.done strong {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.inline-form {
+  display: inline;
+}
+
+.task-content {
+  flex-grow: 1;
+  margin: 0 10px;
+}
+
+.status-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #c00;
+  cursor: pointer;
+}
+
+.file-link {
+  margin-left: 10px;
+  text-decoration: none;
+  color: #3f51b5;
+}
+
+.due {
+  margin-left: 10px;
+  color: #666;
+  font-size: 0.9em;
+}
