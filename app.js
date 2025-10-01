@@ -1,88 +1,131 @@
-const express = require('express');
-const expressLayouts = require('express-ejs-layouts');
-const multer = require('multer');
-const bodyParser = require('body-parser');
-const path = require('path');
-const fs = require('fs');
+// public/app.js
+const apiBase = '/api/tasks';
 
-const app = express();
-const PORT = 3000;
+const addForm = document.getElementById('addForm');
+const tasksList = document.getElementById('tasksList');
+const filterSelect = document.getElementById('filterSelect');
 
-// Создаём папку uploads, если её нет
-if (!fs.existsSync(path.join(__dirname, 'uploads'))) {
-  fs.mkdirSync(path.join(__dirname, 'uploads'));
+async function fetchTasks() {
+  const status = filterSelect.value;
+  const url = status ? `${apiBase}?status=${encodeURIComponent(status)}` : apiBase;
+  const res = await fetch(url);
+  if (!res.ok) {
+    console.error('Ошибка получения задач', res.status);
+    return [];
+  }
+  return res.json();
 }
 
-// Конфигурация multer для загрузки файлов
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
+function renderTasks(tasks) {
+  tasksList.innerHTML = '';
+  if (tasks.length === 0) {
+    tasksList.innerHTML = '<li>Задач пока нет 👌</li>';
+    return;
   }
-});
-const upload = multer({ storage: storage });
+  tasks.forEach(t => {
+    const li = document.createElement('li');
+    li.className = 'task ' + (t.status === 'done' ? 'done' : 'pending');
 
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
+    const statusBtn = document.createElement('button');
+    statusBtn.className = 'status-btn';
+    statusBtn.textContent = t.status === 'done' ? '✔' : '✗';
+    statusBtn.title = 'Переключить статус';
+    statusBtn.addEventListener('click', async () => {
+      await toggleStatus(t.id);
+      await refresh();
+    });
 
-app.use(expressLayouts);
-app.set('layout', 'layout');
+    const content = document.createElement('div');
+    content.className = 'task-content';
+    const title = document.createElement('strong');
+    title.textContent = t.title;
+    content.appendChild(title);
 
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use(express.static(path.join(__dirname, 'public')));
+    if (t.dueDate) {
+      const due = document.createElement('span');
+      due.className = 'due';
+      due.textContent = 'до ' + t.dueDate;
+      content.appendChild(due);
+    }
+    if (t.file) {
+      const a = document.createElement('a');
+      a.href = `/uploads/${t.file}`;
+      a.target = '_blank';
+      a.className = 'file-link';
+      a.textContent = '📎 Файл';
+      content.appendChild(a);
+    }
 
-let tasks = [];
+    const delBtn = document.createElement('button');
+    delBtn.className = 'delete-btn';
+    delBtn.textContent = '🗑';
+    delBtn.title = 'Удалить задачу';
+    delBtn.addEventListener('click', async () => {
+      if (!confirm('Удалить задачу?')) return;
+      await deleteTask(t.id);
+      await refresh();
+    });
 
-// Главная страница со списком задач
-app.get('/', (req, res) => {
-  const filter = req.query.status;
-  let filteredTasks = tasks;
+    li.appendChild(statusBtn);
+    li.appendChild(content);
+    li.appendChild(delBtn);
 
-  if (filter === 'done') {
-    filteredTasks = tasks.filter(task => task.status === 'done');
-  } else if (filter === 'pending') {
-    filteredTasks = tasks.filter(task => task.status === 'pending');
+    tasksList.appendChild(li);
+  });
+}
+
+async function refresh() {
+  const tasks = await fetchTasks();
+  renderTasks(tasks);
+}
+
+async function addTaskFormHandler(e) {
+  e.preventDefault();
+  const title = document.getElementById('title').value.trim();
+  const dueDate = document.getElementById('dueDate').value;
+  const attachment = document.getElementById('attachment').files[0];
+
+  if (!title) return alert('Введите название');
+
+  // send multipart/form-data
+  const form = new FormData();
+  form.append('title', title);
+  if (dueDate) form.append('dueDate', dueDate);
+  if (attachment) form.append('attachment', attachment);
+
+  const res = await fetch(apiBase, {
+    method: 'POST',
+    body: form
+  });
+
+  if (res.status === 201) {
+    addForm.reset();
+    await refresh();
+  } else {
+    const err = await res.json().catch(() => ({ error: 'Unknown' }));
+    alert('Ошибка создания: ' + (err.error || res.status));
   }
+}
 
-  res.render('index', { tasks: filteredTasks, filter });
-});
-
-// Добавить задачу
-app.post('/add', upload.single('attachment'), (req, res) => {
-  const { title, dueDate } = req.body;
-  const task = {
-    id: Date.now(),
-    title,
-    dueDate,
-    status: 'pending',
-    file: req.file ? req.file.filename : null,
-  };
-  tasks.push(task);
-  res.redirect('/');
-});
-
-// Обновить статус задачи
-app.post('/status/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  const task = tasks.find(t => t.id === id);
-  if (task) {
-    task.status = task.status === 'pending' ? 'done' : 'pending';
+async function toggleStatus(id) {
+  const res = await fetch(`${apiBase}/${id}/status`, { method: 'PATCH' });
+  if (!res.ok) {
+    console.error('Не удалось переключить статус', res.status);
   }
-  res.redirect('/');
-});
+}
 
-// Удалить задачу
-app.post('/delete/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  tasks = tasks.filter(t => t.id !== id);
-  res.redirect('/');
-});
+async function deleteTask(id) {
+  const res = await fetch(`${apiBase}/${id}`, { method: 'DELETE' });
+  if (res.status === 204) return;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert('Ошибка удаления: ' + (err.error || res.status));
+  }
+}
 
-// Запуск сервера
-app.listen(PORT, () => {
-  console.log(`✅ Сервер запущен: http://localhost:${PORT}`);
-});
+// events
+addForm.addEventListener('submit', addTaskFormHandler);
+filterSelect.addEventListener('change', refresh);
+
+// initial load
+refresh();
